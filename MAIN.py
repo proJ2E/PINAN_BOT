@@ -4,8 +4,8 @@ from time import sleep
 
 def GetSession():
     user_info = {
-        'user_id': '',
-        'password': ''
+        'user_id': 'jj2_bot',
+        'password': 'jj2_bot'
     }
     url = "http://ref.comgal.info/login_check.php"
     user_id = user_info['user_id']
@@ -202,7 +202,8 @@ class SQLControl:
         sql = "CREATE TABLE IF NOT EXISTS article_info" \
               " (no INTEGER,title varchar(255)," \
               " name varchar(100),conum INTEGER," \
-              "views INTEGER,date varchar(15)" \
+              "views INTEGER,date varchar(15)," \
+              "detect INTEGER" \
               ")"
         self.cur.execute(sql)
         self.cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS article_no ON article_info (no)")
@@ -210,40 +211,83 @@ class SQLControl:
         #self.conn.close()
     #data 형식 (int(no),str(title),str(name),int(conum),int(views),str(date),
     def InsertQuery(self,data):
-        sql = "INSERT OR IGNORE INTO article_info(no,title,name,conum,views,date) values(?,?,?,?,?,?)"
+        sql = "INSERT OR IGNORE INTO article_info(no,title,name,conum,views,date,detect) values(?,?,?,?,?,?,?)"
         self.cur.execute(sql,data)
         self.conn.commit()
         #self.conn.close()
-    def GetQuery(self,article_no):
-        sql = f"SELECT * FROM article_info WHERE no = :No"
-        self.cur.execute(sql,{"No":int(article_no)})
+    def GetQuery(self):
+        sql = f"SELECT * FROM article_info"
+        self.cur.execute(sql)
         all_rows = self.cur.fetchall()
         for i in all_rows:
             print(i)
+    def DeleteRecord(self):
+        sql = "SELECT * FROM article_info"
+        self.cur.execute(sql)
+        articles=self.cur.fetchall()
+        for article in articles:
+            article_no =article[0]
+            url="http://ref.comgal.info/sjzb.php?id=cgref&no="+str(article_no)
+            r=requests.get(url).text
+            find = r.find("선택하신 게시물이 존재하지 않습니다")
+            if find > 0 :
+                print("----FIND DELETED ARTICLE---\n NO : " + str(article_no))
+                print(articles)
+                print(article)
+                sql = "DELETE FROM article_info WHERE no= :No"
+                self.cur.execute(sql,{'No':article_no})
+                self.GetQuery()
+        return
     def Request_many_data(self,datas):
         for data in datas:
             converted_data = Convert_Data_to_SQLData(data)
             self.InsertQuery(converted_data)
 
+    def Detector(self,uploader):
+        sql = f"SELECT * FROM article_info WHERE detect = 0"
+        self.cur.execute(sql)
+        all_rows = self.cur.fetchall()
+        for i in all_rows:
+
+            if i[6]==1:continue
+            if Find_str(i[2]) == 0 :
+                print(i)
+                print("FIND")
+                uploader.Comment(i[0], "님")
+            sql="UPDATE article_info SET detect=1 WHERE no= :No"
+            self.cur.execute(sql,{"No":i[0]})
+
+
 def Convert_Data_to_SQLData(_data):
-    print(_data)
-    tuple = (_data['no'],_data['title'],_data['name'],_data['coNum'],_data['views'],_data['date'])
-    print(tuple)
+    tuple = (_data['no'],_data['title'],_data['name'],_data['coNum'],_data['views'],_data['date'],0)
     return tuple
+
+def Find_str(title):
+    detect_list=["----"]
+    for str in detect_list:
+        if title.find(str):
+            return 1
+    return 0
 
 SQL = SQLControl()
 SQL.CreateSQL()
+SQL.GetQuery()
 session = GetSession()
 uploader = Upload(session)
 parser = Parser()
 while True:
     a = parser.Get_article_info(1)
     SQL.Request_many_data(a)
+    SQL.Detector(uploader)
+    #SQL.DeleteRecord()
+    print(f'{"-"*10}')
+    #SQL.GetQuery()
+    sleep(5)
 
-    sleep(1)
 
-no = input("글번호를 입력해주세요")
-SQL.GetQuery(no)
+
+#no = input("글번호를 입력해주세요")
+#SQL.GetQuery(no)
 #c = parser.Get_article_content()
 #uploader.Article('Test',c)
 
