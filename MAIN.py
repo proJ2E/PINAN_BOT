@@ -1,4 +1,5 @@
 import requests
+import sqlite3
 from time import sleep
 
 def GetSession():
@@ -122,7 +123,11 @@ class Parser(HTMLControl):
         while self.html.find('cart') >=0 and not self.detect:
             # Cart value를 기준으로 나누면서 처리
             self.html = self.cutString(self.html,'cart','',2,0)
-            article_info = self.Makeup_article_info()
+            a = self.Makeup_article_info()
+            if( a =="pass"):
+                continue
+            else:
+                article_info = a
             self.articles.append(article_info)
         return self.articles
 
@@ -139,7 +144,9 @@ class Parser(HTMLControl):
         name = self._Name()
         coNum = self._coNum()
         views = self._Views()
-        return {'no':no,'title':title,'name':name,'coNum':coNum,'views':views,'date':date}
+        if len(no) <=2 :
+            return "pass"
+        return {'no':int(no),'title':title,'name':name,'coNum':int(coNum),'views':views,'date':date}
 
     # 글 내용 파싱하는 부분
     def _Date(self):
@@ -182,11 +189,62 @@ class Parser(HTMLControl):
             content = content[:c] + "http://ref.comgal.info/" +content[c:]
         return content
 
+class SQLControl:
+    def __init__(self):
+        db_file_name = "test.db"
+        self.conn = sqlite3.connect(db_file_name)
+        self.cur = self.conn.cursor()
+    def CreateSQL(self):
+        sql = "DROP TABLE IF EXISTS article_info"
+        self.cur.execute(sql)
+        self.conn.commit()
 
+        sql = "CREATE TABLE IF NOT EXISTS article_info" \
+              " (no INTEGER,title varchar(255)," \
+              " name varchar(100),conum INTEGER," \
+              "views INTEGER,date varchar(15)" \
+              ")"
+        self.cur.execute(sql)
+        self.cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS article_no ON article_info (no)")
+        self.conn.commit()
+        #self.conn.close()
+    #data 형식 (int(no),str(title),str(name),int(conum),int(views),str(date),
+    def InsertQuery(self,data):
+        sql = "INSERT OR IGNORE INTO article_info(no,title,name,conum,views,date) values(?,?,?,?,?,?)"
+        self.cur.execute(sql,data)
+        self.conn.commit()
+        #self.conn.close()
+    def GetQuery(self,article_no):
+        sql = f"SELECT * FROM article_info WHERE no = :No"
+        self.cur.execute(sql,{"No":int(article_no)})
+        all_rows = self.cur.fetchall()
+        for i in all_rows:
+            print(i)
+    def Request_many_data(self,datas):
+        for data in datas:
+            converted_data = Convert_Data_to_SQLData(data)
+            self.InsertQuery(converted_data)
 
+def Convert_Data_to_SQLData(_data):
+    print(_data)
+    tuple = (_data['no'],_data['title'],_data['name'],_data['coNum'],_data['views'],_data['date'])
+    print(tuple)
+    return tuple
+
+SQL = SQLControl()
+SQL.CreateSQL()
 session = GetSession()
 uploader = Upload(session)
 parser = Parser()
-a= parser.Get_article_info()
-c = parser.Get_article_content()
-uploader.Article('Test',c)
+while True:
+    a = parser.Get_article_info(1)
+    SQL.Request_many_data(a)
+
+    sleep(1)
+
+no = input("글번호를 입력해주세요")
+SQL.GetQuery(no)
+#c = parser.Get_article_content()
+#uploader.Article('Test',c)
+
+
