@@ -1,14 +1,11 @@
 import requests
 from time import sleep
 
-user_info = {
-    'user_id' : '',
-    'password' : ''
-}
-'''
-피난갤 로그인 소스
-'''
 def GetSession():
+    user_info = {
+        'user_id': '',
+        'password': ''
+    }
     url = "http://ref.comgal.info/login_check.php"
     user_id = user_info['user_id']
     password = user_info['password']
@@ -22,8 +19,9 @@ def GetSession():
         if login_req.status_code==200 :
             return s
         else:
-            print("LOGINFAILED")
+            print("LOGIN_FAILED")
             return False
+
 class Upload:
     def __init__(self,s):
         self.session = s
