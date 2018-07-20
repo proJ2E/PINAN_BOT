@@ -1,6 +1,8 @@
+
 import requests
 import sqlite3
 from time import sleep
+
 
 def GetSession():
     user_info = {
@@ -211,9 +213,14 @@ class SQLControl:
         #self.conn.close()
     #data 형식 (int(no),str(title),str(name),int(conum),int(views),str(date),
     def InsertQuery(self,data):
-        sql = "INSERT OR IGNORE INTO article_info(no,title,name,conum,views,date,detect) values(?,?,?,?,?,?,?)"
+        sql = "INSERT OR IGNORE INTO article_info(no,title,name,conum,views,date) values(?,?,?,?,?,?)"
         self.cur.execute(sql,data)
         self.conn.commit()
+        sql = "UPDATE article_info SET no=?,title=?,name=?,conum=?,views=? WHERE no=?"
+        d = ( data[0],data[1],data[2],data[3],data[4],data[0] )
+        self.cur.execute(sql,d)
+        self.conn.commit()
+
         #self.conn.close()
     def GetQuery(self):
         sql = f"SELECT * FROM article_info"
@@ -244,23 +251,68 @@ class SQLControl:
             self.InsertQuery(converted_data)
 
     def Detector(self,uploader):
-        sql = f"SELECT * FROM article_info WHERE detect = 0"
+        sql = f"SELECT * FROM article_info WHERE conum > 4 "
         self.cur.execute(sql)
         all_rows = self.cur.fetchall()
         for i in all_rows:
-
-            if i[6]==1:continue
-            if Find_str(i[2]) == 0 :
-                print(i)
-                print("FIND")
-                uploader.Comment(i[0], "님")
-            sql="UPDATE article_info SET detect=1 WHERE no= :No"
-            self.cur.execute(sql,{"No":i[0]})
+            # 디텍트 * -1 은 피자랑 상관없음, 2는 보류 , 1은 확정
+            if i[6]==1 or i[6]==-1 :
+                continue
+            # Comment 갯수가 5보다 큼 or 댓글 수 10이상 보류 게시물
+            if (i[3] >= 5 and i[6] == None) or (i[3]>=10 and i[6] == 2) :
+                find =Find_Pizza(i[0],i[6])
+                if find == 1 :
+                    print(i)
+                    print("FIND PIZZA")
+                    uploader.Comment(i[0], "줄!@")
+                    sql = "UPDATE article_info SET detect=1 WHERE no= :No"
+                    self.cur.execute(sql, {"No": i[0]})
+                elif find == 2 :
+                    sql = "UPDATE article_info SET detect=2 WHERE no= :No"
+                    self.cur.execute(sql, {"No": i[0]})
+                else:
+                    sql = "UPDATE article_info SET detect=-1 WHERE no= :No"
+                    self.cur.execute(sql, {"No": i[0]})
 
 
 def Convert_Data_to_SQLData(_data):
-    tuple = (_data['no'],_data['title'],_data['name'],_data['coNum'],_data['views'],_data['date'],0)
+    tuple = (_data['no'],_data['title'],_data['name'],_data['coNum'],_data['views'],_data['date'])
     return tuple
+
+def Find_Pizza(article_no,detect):
+    HTML = HTMLControl()
+    url = "http://ref.comgal.info/sjzb.php?id=cgref&no=" + str(article_no)
+    r = requests.get(url).text
+    h = HTML.cutString(r,'간단한 답글','',2,0)
+    h = HTML.cutString(h,'tbody','div',2,0)
+    comment_list=[]
+    j_counter=0
+    l_counter=0
+    count = 0
+    # 코멘트 파싱
+    while h.find('break-all') >= 0:
+        content = HTML.cutString(h,'break-all','',2,2)
+        content = HTML.cutString(h, 'left', 'td', 6, 2)
+        print(content)
+        h = HTML.cutString(h,'break-all','',15,0)
+        comment_list.append(content)
+        count += 1
+    # 코멘트 검증
+    for comment in comment_list :
+        if str(comment).find('줄') >0:
+            j_counter+=1
+            if len(comment) < 6:
+                l_counter+=1
+
+    if ( l_counter >4 and j_counter >4 ) or ( j_counter>2 and l_counter >3 ):
+        return 1
+    elif detect != 2 :
+        return 2
+    else:
+        return 0
+
+
+
 
 def Find_str(title):
     detect_list=["----"]
@@ -279,10 +331,9 @@ while True:
     a = parser.Get_article_info(1)
     SQL.Request_many_data(a)
     SQL.Detector(uploader)
-    #SQL.DeleteRecord()
     print(f'{"-"*10}')
-    #SQL.GetQuery()
-    sleep(5)
+    SQL.GetQuery()
+    sleep(10)
 
 
 
