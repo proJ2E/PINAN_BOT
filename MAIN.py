@@ -293,24 +293,50 @@ def Find_Pizza(article_no,detect):
     while h.find('break-all') >= 0:
         content = HTML.cutString(h,'break-all','',2,2)
         content = HTML.cutString(h, 'left', 'td', 6, 2)
-        print(content)
         h = HTML.cutString(h,'break-all','',15,0)
         comment_list.append(content)
-        count += 1
     # 코멘트 검증
     for comment in comment_list :
+        if len(comment) < 1:
+            continue
         if str(comment).find('줄') >0:
+            #print(comment)
             j_counter+=1
-            if len(comment) < 6:
-                l_counter+=1
+        if len(comment) < 8 and len(comment) >=1 :
+            l_counter+=1
+            #print(comment)
+        count+=1
 
-    if ( l_counter >4 and j_counter >4 ) or ( j_counter>2 and l_counter >3 ):
+    isitLine = verify_Line(l_counter,j_counter,count)
+    if isitLine:
         return 1
     elif detect != 2 :
         return 2
     else:
         return 0
 
+# lcount = 짧은 댓글의 갯수 , jcount = 줄 검출 갯수 , count 전체 댓글
+def verify_Line(lcount,jcount,count):
+    print(jcount,lcount,count)
+    if count < 10 :
+        if jcount > 1 and lcount > 3:
+            #print("A")
+            return True
+        else:
+            #print("B")
+            return False
+    elif count > 9:
+        if jcount > 3 and lcount > 6 :
+            #print("C")
+            return True
+        else:
+            #print("D")
+            return False
+    else:
+        if jcount> 9:
+            return True
+        else:
+            return False
 
 
 
@@ -321,19 +347,23 @@ def Find_str(title):
             return 1
     return 0
 
-SQL = SQLControl()
-SQL.CreateSQL()
-SQL.GetQuery()
-session = GetSession()
-uploader = Upload(session)
-parser = Parser()
-while True:
-    a = parser.Get_article_info(1)
-    SQL.Request_many_data(a)
-    SQL.Detector(uploader)
-    print(f'{"-"*10}')
+
+def RUN():
+    SQL = SQLControl()
+    SQL.CreateSQL()
     SQL.GetQuery()
-    sleep(10)
+    session = GetSession()
+    uploader = Upload(session)
+    parser = Parser()
+    while True:
+        a = parser.Get_article_info(1)
+        SQL.Request_many_data(a)
+        # PIZZA DETECT
+        SQL.Detector(uploader)
+        print(f'{"-"*10}')
+        sleep(30)
+RUN()
+
 
 
 
