@@ -1,4 +1,4 @@
-
+import string
 import requests
 import sqlite3
 from time import sleep
@@ -197,10 +197,11 @@ class SQLControl:
         self.conn = sqlite3.connect(db_file_name)
         self.cur = self.conn.cursor()
     def CreateSQL(self):
+        '''
         sql = "DROP TABLE IF EXISTS article_info"
         self.cur.execute(sql)
         self.conn.commit()
-
+        '''
         sql = "CREATE TABLE IF NOT EXISTS article_info" \
               " (no INTEGER,title varchar(255)," \
               " name varchar(100),conum INTEGER," \
@@ -223,11 +224,25 @@ class SQLControl:
 
         #self.conn.close()
     def GetQuery(self):
-        sql = f"SELECT * FROM article_info"
+        sql = "SELECT * FROM article_info"
         self.cur.execute(sql)
         all_rows = self.cur.fetchall()
         for i in all_rows:
             print(i)
+    def DeleteQuery(self):
+        sql = "SELECT * FROM article_info"
+        self.cur.execute(sql)
+        all_rows = self.cur.fetchall()
+        current =0
+        for i in all_rows:
+            if current < i[0]:
+                current = i[0]
+        current -= 30
+        sql = "DELETE FROM article_info WHERE no < :No"
+        self.cur.execute(sql, {'No': current})
+        self.conn.commit()
+        self.GetQuery()
+
     def DeleteRecord(self):
         sql = "SELECT * FROM article_info"
         self.cur.execute(sql)
@@ -251,7 +266,7 @@ class SQLControl:
             self.InsertQuery(converted_data)
 
     def Detector(self,uploader):
-        sql = f"SELECT * FROM article_info WHERE conum > 4 "
+        sql = "SELECT * FROM article_info WHERE conum > 4 "
         self.cur.execute(sql)
         all_rows = self.cur.fetchall()
         for i in all_rows:
@@ -259,20 +274,28 @@ class SQLControl:
             if i[6]==1 or i[6]==-1 :
                 continue
             # Comment 갯수가 5보다 큼 or 댓글 수 10이상 보류 게시물
-            if (i[3] >= 5 and i[6] == None) or (i[3]>=10 and i[6] == 2) :
+            if i[3] >= 5 :
                 find =Find_Pizza(i[0],i[6])
                 if find == 1 :
                     print(i)
                     print("FIND PIZZA")
-                    uploader.Comment(i[0], "줄!@")
+                    #uploader.Comment(i[0], "줄!@")
                     sql = "UPDATE article_info SET detect=1 WHERE no= :No"
                     self.cur.execute(sql, {"No": i[0]})
+                    self.conn.commit()
+                    return i[0]
                 elif find == 2 :
                     sql = "UPDATE article_info SET detect=2 WHERE no= :No"
                     self.cur.execute(sql, {"No": i[0]})
+                    self.conn.commit()
                 else:
                     sql = "UPDATE article_info SET detect=-1 WHERE no= :No"
                     self.cur.execute(sql, {"No": i[0]})
+                    self.conn.commit()
+        return 0
+    def CloseSQL(self):
+        self.conn.commit()
+        self.conn.close()
 
 
 def Convert_Data_to_SQLData(_data):
@@ -293,6 +316,7 @@ def Find_Pizza(article_no,detect):
     while h.find('break-all') >= 0:
         content = HTML.cutString(h,'break-all','',2,2)
         content = HTML.cutString(h, 'left', 'td', 6, 2)
+        print(content)
         h = HTML.cutString(h,'break-all','',15,0)
         comment_list.append(content)
     # 코멘트 검증
@@ -315,7 +339,6 @@ def Find_Pizza(article_no,detect):
     else:
         return 0
 
-# lcount = 짧은 댓글의 갯수 , jcount = 줄 검출 갯수 , count 전체 댓글
 def verify_Line(lcount,jcount,count):
     print(jcount,lcount,count)
     if count < 10 :
@@ -339,7 +362,6 @@ def verify_Line(lcount,jcount,count):
             return False
 
 
-
 def Find_str(title):
     detect_list=["----"]
     for str in detect_list:
@@ -347,29 +369,22 @@ def Find_str(title):
             return 1
     return 0
 
-
 def RUN():
     SQL = SQLControl()
     SQL.CreateSQL()
-    SQL.GetQuery()
+    SQL.DeleteQuery()
     session = GetSession()
     uploader = Upload(session)
     parser = Parser()
-    while True:
-        a = parser.Get_article_info(1)
-        SQL.Request_many_data(a)
-        # PIZZA DETECT
-        SQL.Detector(uploader)
-        print(f'{"-"*10}')
-        sleep(30)
-RUN()
-
-
-
-
-#no = input("글번호를 입력해주세요")
-#SQL.GetQuery(no)
-#c = parser.Get_article_content()
-#uploader.Article('Test',c)
+    a = parser.Get_article_info(1)
+    SQL.Request_many_data(a)
+    article_no = SQL.Detector(uploader)
+    print(f'{"-"*10}')
+    #SQL.GetQuery()
+    SQL.CloseSQL()
+    if article_no > 1:
+        return str(article_no)
+    else :
+        return -1
 
 
